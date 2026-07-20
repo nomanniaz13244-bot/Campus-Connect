@@ -1,0 +1,7 @@
+# Yeh files GitHub par upload nahi hongi
+uploads/
+*.log
+*.tmp
+.DS_Store
+vendor/
+node_modules/
