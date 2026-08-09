@@ -1,19 +1,22 @@
 <?php
-include '../../includes/config/database.php';
+require_once '../../includes/auth_check.php';
+require_login();
+require_once '../../config/db.php';
 
-if(!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
-    exit();
+$id = (int)($_POST['id'] ?? 0);
+
+$stmt = $conn->prepare("SELECT reporter_id FROM lost_found_items WHERE report_id = ?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$row = $stmt->get_result()->fetch_assoc();
+
+if (!$row || $row['reporter_id'] != $_SESSION['user_id']) {
+    die("Not authorized.");
 }
 
-if(isset($_GET['id'])) {
-    $item_id = $_GET['id'];
-    $user_id = $_SESSION['user_id'];
-    
-    $query = "UPDATE lost_items SET status = 'found' WHERE item_id = '$item_id' AND user_id = '$user_id'";
-    mysqli_query($conn, $query);
-}
+$update = $conn->prepare("UPDATE lost_found_items SET status = 'resolved' WHERE report_id = ?");
+$update->bind_param("i", $id);
+$update->execute();
 
 header("Location: index.php");
-exit();
-?>
+exit;

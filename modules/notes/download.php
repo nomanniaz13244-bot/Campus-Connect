@@ -1,28 +1,29 @@
 <?php
-include '../../includes/config/database.php';
+require_once '../../includes/auth_check.php';
+require_login();
+require_once '../../config/db.php';
 
-if(!isset($_GET['id'])) {
-    header("Location: index.php");
-    exit();
+$id = (int)($_GET['id'] ?? 0);
+$stmt = $conn->prepare("SELECT file_path, title FROM notes WHERE note_id = ?");
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$note = $stmt->get_result()->fetch_assoc();
+
+if (!$note) {
+    die("Note not found.");
 }
 
-$note_id = $_GET['id'];
-$query = "SELECT * FROM notes WHERE note_id = '$note_id'";
-$result = mysqli_query($conn, $query);
-
-if(mysqli_num_rows($result) > 0) {
-    $note = mysqli_fetch_assoc($result);
-    $file_path = "../../" . $note['file_url'];
-    
-    if(file_exists($file_path)) {
-        header('Content-Type: application/octet-stream');
-        header('Content-Disposition: attachment; filename="' . basename($file_path) . '"');
-        readfile($file_path);
-        exit();
-    } else {
-        echo "File not found!";
-    }
-} else {
-    header("Location: index.php");
+$full_path = __DIR__ . '/../../' . $note['file_path'];
+if (!file_exists($full_path)) {
+    die("File is missing on server.");
 }
-?>
+
+// increment download count
+$conn->query("UPDATE notes SET download_count = download_count + 1 WHERE note_id = " . $id);
+
+header('Content-Description: File Transfer');
+header('Content-Type: application/octet-stream');
+header('Content-Disposition: attachment; filename="' . basename($note['file_path']) . '"');
+header('Content-Length: ' . filesize($full_path));
+readfile($full_path);
+exit;

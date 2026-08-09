@@ -1,110 +1,67 @@
 <?php
-include '../../includes/config/database.php';
+require_once '../../includes/auth_check.php';
+require_login();
+require_once '../../config/db.php';
+$page_title = "Lost & Found";
 
-// Filter by status
-$status_filter = '';
-if(isset($_GET['status'])) {
-    $status_filter = mysqli_real_escape_string($conn, $_GET['status']);
-    $where = "WHERE status = '$status_filter'";
-} else {
-    $where = "";
+$type_filter = trim($_GET['type'] ?? '');
+
+$sql = "SELECT l.*, u.full_name AS reporter_name FROM lost_found_items l JOIN users u ON u.user_id = l.reporter_id WHERE l.status = 'open'";
+$params = []; $types = "";
+if (in_array($type_filter, ['lost','found'], true)) {
+    $sql .= " AND l.item_type = ?";
+    $params[] = $type_filter; $types .= "s";
 }
+$sql .= " ORDER BY l.created_at DESC";
 
-$query = "SELECT items.*, users.name as reporter_name 
-          FROM lost_items items 
-          JOIN users ON items.user_id = users.user_id 
-          $where 
-          ORDER BY items.reported_date DESC";
-$result = mysqli_query($conn, $query);
+$stmt = $conn->prepare($sql);
+if ($params) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$reports = $stmt->get_result();
+
+include '../../includes/header.php';
 ?>
+<div class="page-container">
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+            <h2 style="margin:0;">🔍 Lost & Found</h2>
+            <p style="color:var(--text-muted); margin:4px 0 0;">Report or browse lost and found items around campus</p>
+        </div>
+        <a href="report.php" class="btn btn-primary">+ Report an Item</a>
+    </div>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lost & Found - Campus Connect</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../../assets/css/style.css">
-</head>
-<body>
-    <?php include '../../includes/navbar.php'; ?>
-    
-    <div class="container mt-5">
-        <div class="row">
-            <div class="col-md-8">
-                <h2>🔍 Lost & Found</h2>
-                <p>Report lost items or find what you've lost</p>
-            </div>
-            <div class="col-md-4 text-end">
-                <a href="report-item.php" class="btn btn-warning">+ Report Item</a>
-            </div>
-        </div>
-        <hr>
-        
-        <!-- Filters -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="btn-group" role="group">
-                    <a href="index.php" class="btn btn-outline-secondary <?php echo ($status_filter == '') ? 'active' : ''; ?>">All</a>
-                    <a href="?status=lost" class="btn btn-outline-danger <?php echo ($status_filter == 'lost') ? 'active' : ''; ?>">Lost</a>
-                    <a href="?status=found" class="btn btn-outline-success <?php echo ($status_filter == 'found') ? 'active' : ''; ?>">Found</a>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Reports List -->
-        <div class="row">
-            <?php if(mysqli_num_rows($result) > 0): ?>
-                <?php while($item = mysqli_fetch_assoc($result)): ?>
-                    <div class="col-md-6 mb-4">
-                        <div class="card shadow">
-                            <div class="row g-0">
-                                <div class="col-md-4">
-                                    <?php if($item['image_url']): ?>
-                                        <img src="../../<?php echo $item['image_url']; ?>" class="img-fluid rounded-start" style="height: 150px; width: 100%; object-fit: cover;">
-                                    <?php else: ?>
-                                        <div class="bg-light text-center py-4">
-                                            <span class="display-4">🔍</span>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="col-md-8">
-                                    <div class="card-body">
-                                        <h5><?php echo $item['title']; ?></h5>
-                                        <p class="text-muted"><?php echo substr($item['description'], 0, 80); ?>...</p>
-                                        <div class="d-flex justify-content-between">
-                                            <span class="badge bg-secondary"><?php echo $item['location']; ?></span>
-                                            <span class="badge <?php echo ($item['status'] == 'lost') ? 'bg-danger' : 'bg-success'; ?>">
-                                                <?php echo strtoupper($item['status']); ?>
-                                            </span>
-                                        </div>
-                                        <small class="text-muted">
-                                            Reported by: <?php echo $item['reporter_name']; ?>
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card-footer bg-transparent">
-                                <a href="view-item.php?id=<?php echo $item['item_id']; ?>" class="btn btn-primary btn-sm">View Details</a>
-                                <?php if($item['status'] == 'lost' && $_SESSION['user_id'] == $item['user_id']): ?>
-                                    <a href="resolve.php?id=<?php echo $item['item_id']; ?>" class="btn btn-success btn-sm">Mark as Resolved</a>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                <?php endwhile; ?>
-            <?php else: ?>
-                <div class="col-12">
-                    <div class="alert alert-info text-center">
-                        <h4>No reports found!</h4>
-                        <p><a href="report-item.php">Report a lost or found item</a></p>
-                    </div>
-                </div>
-            <?php endif; ?>
+    <div class="card">
+        <div style="display:flex; gap:10px;">
+            <a href="index.php" class="btn <?php echo $type_filter === '' ? 'btn-primary' : 'btn-outline'; ?>">All</a>
+            <a href="index.php?type=lost" class="btn <?php echo $type_filter === 'lost' ? 'btn-primary' : 'btn-outline'; ?>">Lost</a>
+            <a href="index.php?type=found" class="btn <?php echo $type_filter === 'found' ? 'btn-primary' : 'btn-outline'; ?>">Found</a>
         </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+
+    <div class="card-grid">
+        <?php if ($reports->num_rows === 0): ?>
+            <p style="color:var(--text-muted);">No reports found.</p>
+        <?php endif; ?>
+        <?php while ($r = $reports->fetch_assoc()): ?>
+            <div class="card">
+                <span class="badge-role" style="background:<?php echo $r['item_type'] === 'lost' ? 'var(--danger)' : 'var(--success)'; ?>;">
+                    <?php echo strtoupper($r['item_type']); ?>
+                </span>
+                <?php if ($r['image_path']): ?>
+                    <img src="../../<?php echo htmlspecialchars($r['image_path']); ?>" style="width:100%; height:140px; object-fit:cover; border-radius:8px; margin:10px 0;">
+                <?php endif; ?>
+                <h4 style="margin:8px 0 4px;"><?php echo htmlspecialchars($r['title']); ?></h4>
+                <p style="color:var(--text-muted); font-size:0.9rem; margin:0 0 6px;"><?php echo htmlspecialchars($r['description']); ?></p>
+                <p style="font-size:0.85rem; color:var(--text-muted); margin:0;">📍 <?php echo htmlspecialchars($r['location'] ?: 'Not specified'); ?></p>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin:4px 0 10px;">Reported by <?php echo htmlspecialchars($r['reporter_name']); ?></p>
+                <?php if ($r['reporter_id'] == $_SESSION['user_id']): ?>
+                    <form method="POST" action="resolve.php">
+                        <input type="hidden" name="id" value="<?php echo $r['report_id']; ?>">
+                        <button type="submit" class="btn btn-outline" style="width:100%;">Mark Resolved</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+        <?php endwhile; ?>
+    </div>
+</div>
+<?php include '../../includes/footer.php'; ?>

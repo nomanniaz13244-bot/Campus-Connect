@@ -1,135 +1,78 @@
 <?php
-include '../../includes/config/database.php';
+require_once '../../includes/auth_check.php';
+require_login();
+require_once '../../config/db.php';
+$page_title = "Academic Notes";
 
-// Check if user is logged in
-if(!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
-    exit();
-}
+$search = trim($_GET['q'] ?? '');
+$subject = trim($_GET['subject'] ?? '');
+$semester = trim($_GET['semester'] ?? '');
 
-// Search functionality
-$search = '';
-$semester = '';
-if(isset($_GET['search'])) {
-    $search = mysqli_real_escape_string($conn, $_GET['search']);
-}
-if(isset($_GET['semester'])) {
-    $semester = mysqli_real_escape_string($conn, $_GET['semester']);
-}
+$sql = "SELECT n.*, u.full_name AS uploader_name FROM notes n JOIN users u ON u.user_id = n.uploader_id WHERE 1=1";
+$params = []; $types = "";
 
-// Build query
-$where = "";
-if($search) {
-    $where .= " AND (title LIKE '%$search%' OR subject LIKE '%$search%')";
+if ($search !== '') {
+    $sql .= " AND (n.title LIKE ? OR n.description LIKE ?)";
+    $like = "%$search%"; $params[] = $like; $params[] = $like; $types .= "ss";
 }
-if($semester) {
-    $where .= " AND semester = '$semester'";
-}
+if ($subject !== '') { $sql .= " AND n.subject = ?"; $params[] = $subject; $types .= "s"; }
+if ($semester !== '') { $sql .= " AND n.semester = ?"; $params[] = $semester; $types .= "s"; }
+$sql .= " ORDER BY n.created_at DESC";
 
-$query = "SELECT notes.*, users.name as uploader_name 
-          FROM notes 
-          JOIN users ON notes.user_id = users.user_id 
-          WHERE 1=1 $where
-          ORDER BY notes.upload_date DESC";
-$result = mysqli_query($conn, $query);
+$stmt = $conn->prepare($sql);
+if ($params) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$notes = $stmt->get_result();
+
+$subjects = $conn->query("SELECT DISTINCT subject FROM notes ORDER BY subject");
+$semesters = $conn->query("SELECT DISTINCT semester FROM notes ORDER BY semester");
+
+include '../../includes/header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notes - Campus Connect</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../../assets/css/style.css">
-</head>
-<body>
-    <?php include '../../includes/navbar.php'; ?>
-    
-    <div class="container mt-5">
-        <div class="row">
-            <div class="col-md-8">
-                <h2>📝 Academic Notes</h2>
-                <p>Share and download study materials</p>
-            </div>
-            <div class="col-md-4 text-end">
-                <a href="upload-note.php" class="btn btn-primary">+ Upload Note</a>
-            </div>
+<div class="page-container">
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+            <h2 style="margin:0;">📚 Academic Notes Sharing</h2>
+            <p style="color:var(--text-muted); margin:4px 0 0;">Find and share study material by subject & semester</p>
         </div>
-        <hr>
-        
-        <!-- Search Filters -->
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <form method="GET" action="">
-                    <div class="input-group">
-                        <input type="text" class="form-control" name="search" placeholder="Search notes..." value="<?php echo $search; ?>">
-                        <button type="submit" class="btn btn-outline-primary">Search</button>
-                        <?php if($search): ?>
-                            <a href="index.php" class="btn btn-outline-secondary">Clear</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
-            </div>
-            <div class="col-md-4">
-                <form method="GET" action="">
-                    <select class="form-control" name="semester" onchange="this.form.submit()">
-                        <option value="">All Semesters</option>
-                        <option value="1" <?php echo ($semester == '1') ? 'selected' : ''; ?>>Semester 1</option>
-                        <option value="2" <?php echo ($semester == '2') ? 'selected' : ''; ?>>Semester 2</option>
-                        <option value="3" <?php echo ($semester == '3') ? 'selected' : ''; ?>>Semester 3</option>
-                        <option value="4" <?php echo ($semester == '4') ? 'selected' : ''; ?>>Semester 4</option>
-                        <option value="5" <?php echo ($semester == '5') ? 'selected' : ''; ?>>Semester 5</option>
-                        <option value="6" <?php echo ($semester == '6') ? 'selected' : ''; ?>>Semester 6</option>
-                        <option value="7" <?php echo ($semester == '7') ? 'selected' : ''; ?>>Semester 7</option>
-                        <option value="8" <?php echo ($semester == '8') ? 'selected' : ''; ?>>Semester 8</option>
-                    </select>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Notes List -->
-        <div class="row">
-            <?php if(mysqli_num_rows($result) > 0): ?>
-                <?php while($note = mysqli_fetch_assoc($result)): ?>
-                    <div class="col-md-6 mb-4">
-                        <div class="card shadow">
-                            <div class="card-body">
-                                <h5><?php echo $note['title']; ?></h5>
-                                <p class="text-muted">
-                                    <strong>Subject:</strong> <?php echo $note['subject']; ?> | 
-                                    <strong>Semester:</strong> <?php echo $note['semester']; ?>
-                                </p>
-                                <p><?php echo substr($note['description'], 0, 100); ?>...</p>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <small class="text-muted">
-                                        Uploaded by: <?php echo $note['uploader_name']; ?>
-                                    </small>
-                                    <small class="text-muted">
-                                        <?php echo date('d M Y', strtotime($note['upload_date'])); ?>
-                                    </small>
-                                </div>
-                            </div>
-                            <div class="card-footer bg-transparent">
-                                <a href="download.php?id=<?php echo $note['note_id']; ?>" class="btn btn-success btn-sm">⬇ Download</a>
-                                <?php if($_SESSION['user_id'] == $note['user_id']): ?>
-                                    <a href="delete-note.php?id=<?php echo $note['note_id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?')">Delete</a>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                <?php endwhile; ?>
-            <?php else: ?>
-                <div class="col-12">
-                    <div class="alert alert-info text-center">
-                        <h4>No notes found!</h4>
-                        <p>Be the first to <a href="upload-note.php">upload a note</a>.</p>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
+        <a href="upload.php" class="btn btn-primary">+ Upload Notes</a>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+
+    <div class="card">
+        <form method="GET" style="display:flex; gap:12px; flex-wrap:wrap;">
+            <input type="text" name="q" class="form-control" style="flex:2; min-width:200px;" placeholder="Search notes..." value="<?php echo htmlspecialchars($search); ?>">
+            <select name="subject" class="form-control" style="flex:1; min-width:150px;">
+                <option value="">All Subjects</option>
+                <?php while ($s = $subjects->fetch_assoc()): ?>
+                    <option value="<?php echo htmlspecialchars($s['subject']); ?>" <?php echo $subject === $s['subject'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($s['subject']); ?></option>
+                <?php endwhile; ?>
+            </select>
+            <select name="semester" class="form-control" style="flex:1; min-width:130px;">
+                <option value="">All Semesters</option>
+                <?php while ($s = $semesters->fetch_assoc()): ?>
+                    <option value="<?php echo htmlspecialchars($s['semester']); ?>" <?php echo $semester === $s['semester'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($s['semester']); ?></option>
+                <?php endwhile; ?>
+            </select>
+            <button type="submit" class="btn btn-outline">Filter</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <?php if ($notes->num_rows === 0): ?>
+            <p style="color:var(--text-muted);">No notes found.</p>
+        <?php endif; ?>
+        <?php while ($n = $notes->fetch_assoc()): ?>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid var(--border);">
+                <div>
+                    <h4 style="margin:0 0 4px;"><?php echo htmlspecialchars($n['title']); ?></h4>
+                    <p style="margin:0; color:var(--text-muted); font-size:0.85rem;">
+                        <?php echo htmlspecialchars($n['subject']); ?> · Semester <?php echo htmlspecialchars($n['semester']); ?> ·
+                        by <?php echo htmlspecialchars($n['uploader_name']); ?> · <?php echo (int)$n['download_count']; ?> downloads
+                    </p>
+                </div>
+                <a href="download.php?id=<?php echo $n['note_id']; ?>" class="btn btn-outline">Download</a>
+            </div>
+        <?php endwhile; ?>
+    </div>
+</div>
+<?php include '../../includes/footer.php'; ?>

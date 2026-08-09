@@ -1,106 +1,80 @@
 <?php
-include '../../includes/config/database.php';
+require_once '../../includes/auth_check.php';
+require_login();
+require_once '../../config/db.php';
+$page_title = "Marketplace";
 
-// Search functionality
-$search = '';
-if(isset($_GET['search'])) {
-    $search = mysqli_real_escape_string($conn, $_GET['search']);
-    $where = "WHERE title LIKE '%$search%' OR description LIKE '%$search%'";
-} else {
-    $where = "";
+$search = trim($_GET['q'] ?? '');
+$category = trim($_GET['category'] ?? '');
+
+$sql = "SELECT m.*, u.full_name AS seller_name FROM marketplace_items m
+        JOIN users u ON u.user_id = m.seller_id
+        WHERE m.status = 'available'";
+$params = [];
+$types = "";
+
+if ($search !== '') {
+    $sql .= " AND (m.title LIKE ? OR m.description LIKE ?)";
+    $like = "%$search%";
+    $params[] = $like; $params[] = $like;
+    $types .= "ss";
 }
+if ($category !== '') {
+    $sql .= " AND m.category = ?";
+    $params[] = $category;
+    $types .= "s";
+}
+$sql .= " ORDER BY m.created_at DESC";
 
-// Get all items
-$query = "SELECT items.*, users.name as seller_name 
-          FROM marketplace_items items 
-          JOIN users ON items.user_id = users.user_id 
-          $where 
-          ORDER BY items.created_at DESC";
-$result = mysqli_query($conn, $query);
+$stmt = $conn->prepare($sql);
+if ($params) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$items = $stmt->get_result();
+
+$categories = $conn->query("SELECT DISTINCT category FROM marketplace_items WHERE category IS NOT NULL AND category != ''");
+
+include '../../includes/header.php';
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marketplace - Campus Connect</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="../../assets/css/style.css">
-</head>
-<body>
-    <?php include '../../includes/navbar.php'; ?>
-    
-    <div class="container mt-5">
-        <div class="row">
-            <div class="col-md-8">
-                <h2>📚 Marketplace</h2>
-                <p>Buy and sell items with fellow students</p>
-            </div>
-            <div class="col-md-4 text-end">
-                <a href="add-item.php" class="btn btn-primary">+ Sell Item</a>
-            </div>
+<div class="page-container">
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+            <h2 style="margin:0;">🛒 Buy & Sell Marketplace</h2>
+            <p style="color:var(--text-muted); margin:4px 0 0;">Browse listings from fellow students</p>
         </div>
-        <hr>
-        
-        <!-- Search Bar -->
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <form method="GET" action="">
-                    <div class="input-group">
-                        <input type="text" class="form-control" name="search" placeholder="Search items..." value="<?php echo $search; ?>">
-                        <button type="submit" class="btn btn-outline-primary">Search</button>
-                        <?php if($search): ?>
-                            <a href="index.php" class="btn btn-outline-secondary">Clear</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Items Grid -->
-        <div class="row">
-            <?php if(mysqli_num_rows($result) > 0): ?>
-                <?php while($item = mysqli_fetch_assoc($result)): ?>
-                    <div class="col-md-4 mb-4">
-                        <div class="card shadow h-100">
-                            <?php if($item['image_url']): ?>
-                                <img src="../../<?php echo $item['image_url']; ?>" class="card-img-top" alt="Item Image" style="height: 200px; object-fit: cover;">
-                            <?php else: ?>
-                                <div class="card-img-top bg-light text-center py-5">
-                                    <span class="display-1">📦</span>
-                                </div>
-                            <?php endif; ?>
-                            <div class="card-body">
-                                <h5 class="card-title"><?php echo $item['title']; ?></h5>
-                                <p class="card-text text-muted">
-                                    <?php echo substr($item['description'], 0, 100); ?>...
-                                </p>
-                                <h5 class="text-success">Rs. <?php echo number_format($item['price'], 2); ?></h5>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <small class="text-muted">
-                                        <i class="fas fa-user"></i> <?php echo $item['seller_name']; ?>
-                                    </small>
-                                    <span class="badge bg-secondary"><?php echo $item['category']; ?></span>
-                                </div>
-                            </div>
-                            <div class="card-footer bg-transparent">
-                                <a href="view-item.php?id=<?php echo $item['item_id']; ?>" class="btn btn-primary w-100">View Details</a>
-                            </div>
-                        </div>
-                    </div>
-                <?php endwhile; ?>
-            <?php else: ?>
-                <div class="col-12">
-                    <div class="alert alert-info text-center">
-                        <h4>No items found!</h4>
-                        <p>Be the first to <a href="add-item.php">sell an item</a>.</p>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
+        <a href="create.php" class="btn btn-primary">+ Post an Item</a>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+
+    <div class="card">
+        <form method="GET" style="display:flex; gap:12px; flex-wrap:wrap;">
+            <input type="text" name="q" class="form-control" style="flex:2; min-width:200px;" placeholder="Search items..." value="<?php echo htmlspecialchars($search); ?>">
+            <select name="category" class="form-control" style="flex:1; min-width:150px;">
+                <option value="">All Categories</option>
+                <?php while ($c = $categories->fetch_assoc()): ?>
+                    <option value="<?php echo htmlspecialchars($c['category']); ?>" <?php echo $category === $c['category'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($c['category']); ?>
+                    </option>
+                <?php endwhile; ?>
+            </select>
+            <button type="submit" class="btn btn-outline">Filter</button>
+        </form>
+    </div>
+
+    <div class="card-grid">
+        <?php if ($items->num_rows === 0): ?>
+            <p style="color:var(--text-muted);">No items found.</p>
+        <?php endif; ?>
+        <?php while ($item = $items->fetch_assoc()): ?>
+            <a href="view.php?id=<?php echo $item['item_id']; ?>" class="card" style="display:block;">
+                <?php if ($item['image_path']): ?>
+                    <img src="../../<?php echo htmlspecialchars($item['image_path']); ?>" style="width:100%; height:150px; object-fit:cover; border-radius:8px; margin-bottom:10px;">
+                <?php else: ?>
+                    <div style="width:100%; height:150px; background:var(--bg); border-radius:8px; margin-bottom:10px; display:flex; align-items:center; justify-content:center; color:var(--text-muted);">No Image</div>
+                <?php endif; ?>
+                <h4 style="margin:0 0 6px;"><?php echo htmlspecialchars($item['title']); ?></h4>
+                <p style="color:var(--primary); font-weight:700; margin:0 0 6px;">Rs. <?php echo number_format($item['price'], 2); ?></p>
+                <p style="color:var(--text-muted); font-size:0.85rem; margin:0;"><?php echo htmlspecialchars($item['category'] ?: 'General'); ?> · by <?php echo htmlspecialchars($item['seller_name']); ?></p>
+            </a>
+        <?php endwhile; ?>
+    </div>
+</div>
+<?php include '../../includes/footer.php'; ?>

@@ -1,7 +1,5 @@
-# Yeh files GitHub par upload nahi hongi
-uploads/
+/vendor/
+.env
 *.log
-*.tmp
 .DS_Store
-vendor/
-node_modules/
+Thumbs.db
