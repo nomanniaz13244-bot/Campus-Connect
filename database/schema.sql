@@ -143,5 +143,18 @@ CREATE TABLE complaints (
 -- Seed: default admin account (password: Admin@123 -- change after first login)
 -- Hash generated with PHP password_hash(), bcrypt
 -- =====================================================
-INSERT INTO users (full_name, email, password_hash, role, status)
+INSERT IGNORE INTO users (full_name, email, password_hash, role, status)
 VALUES ('System Admin', 'admin@campusconnect.edu', '$2y$10$examplehashreplaceonfirstrun.......................', 'admin', 'active');
+
+-- =====================================================
+-- Sample Clubs (requires admin users to exist first)
+-- =====================================================
+INSERT IGNORE INTO clubs (name, description, category, logo_path, club_admin_id, created_at) VALUES
+('Computer Science Society', 'A community for CS students to learn and grow together. We organize coding workshops, hackathons, and tech talks.', 'Academic', NULL, 1, NOW()),
+('Sports Club', 'Promoting sports and healthy lifestyle on campus. We organize tournaments and fitness events.', 'Sports', NULL, 1, NOW()),
+('Arts & Culture Society', 'Celebrating arts, music, and cultural diversity. We organize exhibitions and cultural events.', 'Arts', NULL, 1, NOW()),
+('Robotics Club', 'Building robots and exploring AI technologies. We participate in robotics competitions.', 'Technical', NULL, 1, NOW()),
+('Photography Club', 'Capturing moments and exploring visual storytelling. We conduct photography walks and exhibitions.', 'Arts', NULL, 1, NOW()),
+('Debate Society', 'Enhancing public speaking and critical thinking skills through debates and discussions.', 'Academic', NULL, 1, NOW()),
+('Gaming Club', 'A space for gamers to connect, compete, and collaborate. We organize tournaments and game nights.', 'Recreation', NULL, 1, NOW()),
+('Environmental Club', 'Promoting sustainability and environmental awareness on campus.', 'Social', NULL, 1, NOW());

@@ -20,15 +20,11 @@ $event_count = $conn->query("SELECT COUNT(*) c FROM events WHERE posted_by=" . (
 
 include '../includes/header.php';
 ?>
+
+<!-- MAIN CONTENT - SIDEBAR REMOVED (already in header.php) -->
 <div class="page-container">
     <div class="dashboard-shell">
-        <aside class="sidebar">
-            <a href="club_admin.php" class="active">🏠 Overview</a>
-            <a href="../modules/clubs/my_club.php">🎭 My Club & Members</a>
-            <a href="../modules/events/create.php">📅 Post Event</a>
-            <a href="../modules/clubs/index.php">🗂️ All Clubs</a>
-        </aside>
-        <main>
+        <main style="width:100%;">
             <div class="card">
                 <h2>Welcome, <?php echo htmlspecialchars($_SESSION['full_name']); ?> 🎭</h2>
                 <p style="color:var(--text-muted);">Manage your club, members and event postings from here.</p>
@@ -39,6 +35,19 @@ include '../includes/header.php';
                 <div class="stat-box"><div class="num"><?php echo (int)$pending_count; ?></div><div class="label">Pending Requests</div></div>
                 <div class="stat-box"><div class="num"><?php echo (int)$event_count; ?></div><div class="label">Events Posted</div></div>
             </div>
+            
+            <?php if ($club): ?>
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div>
+                        <h3 style="margin:0 0 4px;">Manage Members & Requests</h3>
+                        <p style="margin:0; color:var(--text-muted); font-size:0.9rem;">Review and approve pending membership requests, view all club members.</p>
+                    </div>
+                    <a href="../modules/clubs/my_club.php" class="btn btn-primary">Go to Members</a>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <?php if (!$club): ?>
             <div class="card">
                 <p style="color:var(--text-muted);">You haven't created a club yet. <a href="../modules/clubs/my_club.php" style="color:var(--primary); font-weight:600;">Create one now</a>.</p>
@@ -47,4 +56,5 @@ include '../includes/header.php';
         </main>
     </div>
 </div>
+
 <?php include '../includes/footer.php'; ?>

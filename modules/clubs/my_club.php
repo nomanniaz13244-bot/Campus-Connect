@@ -96,10 +96,14 @@ if (!$club):
 </div>
 <?php
 else:
-    $members = $conn->prepare("SELECT cm.*, u.full_name, u.email FROM club_members cm JOIN users u ON u.user_id = cm.student_id WHERE cm.club_id = ? ORDER BY cm.status, cm.joined_at DESC");
-    $members->bind_param("i", $club['club_id']);
-    $members->execute();
-    $members = $members->get_result();
+    $members = $conn->prepare("SELECT cm.membership_id, cm.club_id, cm.student_id, cm.status, cm.joined_at, u.full_name, u.email FROM club_members cm JOIN users u ON u.user_id = cm.student_id WHERE cm.club_id = ? ORDER BY cm.status, cm.joined_at DESC");
+    if ($members) {
+        $members->bind_param("i", $club['club_id']);
+        $members->execute();
+        $members = $members->get_result();
+    } else {
+        $members = null;
+    }
 ?>
 <div class="page-container">
     <div class="card">

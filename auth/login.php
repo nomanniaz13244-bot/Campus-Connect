@@ -28,9 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($user['status'] !== 'active') {
                 $errors[] = "Your account has been suspended. Contact admin.";
             } elseif (password_verify($password, $user['password_hash'])) {
+                // Session regeneration for security
+                session_regenerate_id(true);
+                
                 $_SESSION['user_id'] = $user['user_id'];
                 $_SESSION['full_name'] = $user['full_name'];
                 $_SESSION['role'] = $user['role'];
+                $_SESSION['last_activity'] = time(); // Set last activity time
 
                 header("Location: ../dashboard/" . $user['role'] . ".php");
                 exit;
